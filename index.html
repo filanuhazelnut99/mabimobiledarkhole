@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瑪奇 Mobile 深淵黑色坑洞定時器</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #121214;
+            color: #e0e0e6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #1e1e24;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+        .audio-banner {
+            width: 100%;
+            max-width: 600px;
+            background: #ff9800;
+            color: #000;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: background 0.3s;
+        }
+        .audio-banner.enabled {
+            background: #4caf50;
+            color: #fff;
+        }
+        h1 {
+            color: #bb86fc;
+            text-align: center;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        .timer-box {
+            background: #25252d;
+            border-left: 5px solid #bb86fc;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .countdown {
+            font-size: 32px;
+            font-weight: bold;
+            color: #03dac6;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .info-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ff7597;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+        .highlight {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+        .status-text {
+            font-size: 14px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="audioBtn" class="audio-banner" onclick="enableAudio()">
+        🔊 點擊啟用「咕嘎」語音提示（瀏覽器限制，必須點擊一次）
+    </div>
+
+    <div class="container">
+        <h1>🌌 深淵黑色坑洞定時器 🌌</h1>
+        
+        <div class="timer-box">
+            <div class="status-text">距離下次【建議卡位時間】還剩：</div>
+            <div id="countdown" class="countdown">計算中...</div>
+            <div class="status-text" id="next-time-info">下一次刷新時間：計算中...</div>
+        </div>
+
+        <div class="info-title">📍 公會建議路線</div>
+        <ul>
+            <li><span class="highlight">雲海曠野</span> ➔ <span class="highlight">女神庭園</span> ➔ <span class="highlight">冰霜峽谷</span></li>
+            <li style="color: #ff5252; list-style-type: none; margin-left: -20px; font-size: 13px; margin-top: 5px;">⚠️ 注意：除「狼之森林」外，其餘狩獵場隨機刷新！</li>
+        </ul>
+
+        <div class="info-title">🎁 深淵黑色坑洞獎勵</div>
+        <ul>
+            <li>高級不穩定的深淵結晶</li>
+            <li>稀有附魔卷軸</li>
+            <li>S0 首領專屬素材</li>
+            <li>限定特殊稱號</li>
+        </ul>
+    </div>
+
+    <script>
+        // 固定初始基準時間：2026/10/21 14:10:00 (時間戳)
+        const baseTime = new Date('2026-10-21T14:10:00').getTime();
+        const cycleMs = 36 * 60 * 60 * 1000; // 36小時的毫秒數
+        const setupOffsetMs = 10 * 60 * 1000; // 提早10分鐘卡位
+
+        let audioEnabled = false;
+        let played5 = false;
+        let played3 = false;
+        let played1 = false;
+
+        function enableAudio() {
+            audioEnabled = true;
+            const btn = document.getElementById('audioBtn');
+            btn.innerText = "✅ 「咕嘎」語音提示已啟用";
+            btn.className = "audio-banner enabled";
+            
+            // 測試語音確保解鎖
+            speak("語音提示功能已開啟");
+        }
+
+        function speak(text) {
+            if (!audioEnabled) return;
+            const synth = window.speechSynthesis;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-TW';
+            synth.speak(utterance);
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            
+            // 計算自基準點以來過去了多少個週期
+            const elapsed = now - baseTime;
+            let currentCycleCount = Math.floor(elapsed / cycleMs);
+            if (elapsed < 0) currentCycleCount = -1;
+            
+            // 下一次真正的重新整理時間
+            const nextRefreshTime = baseTime + (currentCycleCount + 1) * cycleMs;
+            // 建議卡位時間（提早10分鐘）
+            const nextSetupTime = nextRefreshTime - setupOffsetMs;
+            
+            // 計算倒數距離「卡位時間」
+            let diff = nextSetupTime - now;
+            
+            // 如果當前時間已經過了卡位時間但還沒到刷新時間，diff會是負的
+            // 這種情況下，我們依然倒數到這次的刷新，或者直接算下一個卡位
+            if (diff < 0 && now < nextRefreshTime) {
+                // 目前正處於進場卡位的10分鐘內
+                document.getElementById('countdown').innerHTML = "紫洞即將開啟！";
+                document.getElementById('countdown').style.color = "#ff5252";
+                
+                // 重置下一輪的播放旗標
+                played5 = false;
+                played3 = false;
+                played1 = false;
+            } else {
+                // 如果已經徹底超過刷新時間，重新整理計算（理論上會在上方的 nextRefreshTime 自動進到下一輪）
+                if (diff < 0) {
+                    diff = diff + cycleMs;
+                }
+                
+                document.getElementById('countdown').style.color = "#03dac6";
+                
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                document.getElementById('countdown').innerHTML = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                // 語音觸發控制 (5分, 3分, 1分)
+                if (hours === 0) {
+                    if (minutes === 5 && !played5) {
+                        speak("咕嘎！咕嘎！深淵坑洞即將開啟，請公會成員速至雲海曠野準備！還有五分鐘！");
+                        played5 = true;
+                    }
+                    if (minutes === 3 && !played3) {
+                        speak("咕嘎！咕嘎！深淵坑洞即將開啟，請公會成員速至雲海曠野準備！還有三分鐘！");
+                        played3 = true;
+                    }
+                    if (minutes === 1 && !played1) {
+                        speak("咕嘎！咕嘎！最後一分鐘！請公會成員立刻到齊！");
+                        played1 = true;
+                    }
+                } else {
+                    // 重置旗標
+                    played5 = false;
+                    played3 = false;
+                    played1 = false;
+                }
+            }
+            
+            // 顯示下一次精準重新整理時間
+            const refreshDate = new Date(nextRefreshTime);
+            const rYear = refreshDate.getFullYear();
+            const rMonth = (refreshDate.getMonth() + 1).toString().padStart(2, '0');
+            const rDate = refreshDate.getDate().toString().padStart(2, '0');
+            const rHours = refreshDate.getHours().toString().padStart(2, '0');
+            const rMin = refreshDate.getMinutes().toString().padStart(2, '0');
+            
+            document.getElementById('next-time-info').innerHTML = 
+                `下一次紫洞刷新時間：<span class="highlight">${rYear}/${rMonth}/${rDate} ${rHours}:${rMin}</span><br>` +
+                `建議卡位時間（提早10分）：${rHours}:${(refreshDate.getMinutes() - 10 < 0 ? '00' : refreshDate.getMinutes() - 10)}`;
+        }
+
+        // 每秒更新
+        setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
+</body>
+</html>

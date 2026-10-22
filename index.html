@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -36,7 +37,6 @@
             border-radius: 8px;
             cursor: pointer;
             box-sizing: border-box;
-            transition: background 0.3s;
         }
         .audio-banner.enabled {
             background: #4caf50;
@@ -87,28 +87,49 @@
         .status-text {
             font-size: 14px;
             color: #aaa;
+            line-height: 1.8;
+        }
+        .open-status {
+            color: #4caf50;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
     <div id="audioBtn" class="audio-banner" onclick="enableAudio()">
-        🔊 點擊啟用「咕嘎」語音提示（瀏覽器限制，必須點擊一次）
+        🔊 點擊啟用「咕嘎」語音提示
     </div>
 
     <div class="container">
         <h1>🌌 深淵黑色坑洞定時器 🌌</h1>
-        
+
         <div class="timer-box">
-            <div class="status-text">距離下次【建議卡位時間】還剩：</div>
-            <div id="countdown" class="countdown">計算中...</div>
-            <div class="status-text" id="next-time-info">下一次刷新時間：計算中...</div>
+            <div class="status-text" id="timer-title">
+                距離下次【建議卡位時間】還剩：
+            </div>
+
+            <div id="countdown" class="countdown">
+                計算中...
+            </div>
+
+            <div class="status-text" id="next-time-info">
+                下一次刷新時間：計算中...
+            </div>
         </div>
 
         <div class="info-title">📍 公會建議路線</div>
         <ul>
-            <li><span class="highlight">雲海曠野</span> ➔ <span class="highlight">女神庭園</span> ➔ <span class="highlight">冰霜峽谷</span></li>
-            <li style="color: #ff5252; list-style-type: none; margin-left: -20px; font-size: 13px; margin-top: 5px;">⚠️ 注意：除「狼之森林」外，其餘狩獵場隨機刷新！</li>
+            <li>
+                <span class="highlight">雲海曠野</span>
+                ➔
+                <span class="highlight">女神庭園</span>
+                ➔
+                <span class="highlight">冰霜峽谷</span>
+            </li>
+            <li style="color:#ff5252;list-style-type:none;margin-left:-20px;font-size:13px;margin-top:5px;">
+                ⚠️ 注意：除「狼之森林」外，其餘狩獵場隨機刷新！
+            </li>
         </ul>
 
         <div class="info-title">🎁 深淵黑色坑洞獎勵</div>
@@ -121,114 +142,301 @@
     </div>
 
     <script>
-        // 固定初始基準時間：2026/10/21 14:10:00 (時間戳)
-        const baseTime = new Date('2026-10-21T14:10:00').getTime();
-        const cycleMs = 36 * 60 * 60 * 1000; // 36小時的毫秒數
-        const setupOffsetMs = 10 * 60 * 1000; // 提早10分鐘卡位
+        // =====================================
+        // 基本設定
+        // =====================================
+
+        // 固定基準時間：台灣時間 2026/10/21 14:10
+        const baseTime =
+            new Date('2026-10-21T14:10:00+08:00').getTime();
+
+        // 每 36 小時開啟一次
+        const cycleMs = 36 * 60 * 60 * 1000;
+
+        // 紫洞開啟後持續 15 分鐘
+        const openDurationMs = 15 * 60 * 1000;
+
+        // 提前 10 分鐘卡位
+        const setupOffsetMs = 10 * 60 * 1000;
+
+        // =====================================
+        // 語音設定
+        // =====================================
 
         let audioEnabled = false;
         let played5 = false;
         let played3 = false;
         let played1 = false;
 
+        // 記錄目前週期，避免同輪重複提醒
+        let lastCycleIndex = null;
+
         function enableAudio() {
             audioEnabled = true;
+
             const btn = document.getElementById('audioBtn');
             btn.innerText = "✅ 「咕嘎」語音提示已啟用";
             btn.className = "audio-banner enabled";
-            
-            // 測試語音確保解鎖
+
             speak("語音提示功能已開啟");
         }
 
         function speak(text) {
             if (!audioEnabled) return;
+
+            if (!('speechSynthesis' in window)) return;
+
             const synth = window.speechSynthesis;
             const utterance = new SpeechSynthesisUtterance(text);
+
             utterance.lang = 'zh-TW';
+            utterance.rate = 1;
+            utterance.volume = 1;
+
             synth.speak(utterance);
         }
 
+        // =====================================
+        // 格式化倒數時間
+        // =====================================
+
+        function formatCountdown(ms) {
+            const totalSeconds = Math.max(
+                0,
+                Math.ceil(ms / 1000)
+            );
+
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor(
+                (totalSeconds % 3600) / 60
+            );
+            const seconds = totalSeconds % 60;
+
+            return (
+                String(hours).padStart(2, '0') + ':' +
+                String(minutes).padStart(2, '0') + ':' +
+                String(seconds).padStart(2, '0')
+            );
+        }
+
+        // 固定顯示台灣時間
+        function formatDate(timestamp) {
+            const parts = new Intl.DateTimeFormat(
+                'en-CA',
+                {
+                    timeZone: 'Asia/Taipei',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hourCycle: 'h23'
+                }
+            ).formatToParts(new Date(timestamp));
+
+            const value = {};
+            parts.forEach(part => {
+                value[part.type] = part.value;
+            });
+
+            return (
+                value.year + '/' +
+                value.month + '/' +
+                value.day + ' ' +
+                value.hour + ':' +
+                value.minute
+            );
+        }
+
+        // =====================================
+        // 更新倒數計時
+        // =====================================
+
         function updateTimer() {
+
             const now = Date.now();
-            
-            // 計算自基準點以來過去了多少個週期
-            const elapsed = now - baseTime;
-            let currentCycleCount = Math.floor(elapsed / cycleMs);
-            if (elapsed < 0) currentCycleCount = -1;
-            
-            // 下一次真正的重新整理時間
-            const nextRefreshTime = baseTime + (currentCycleCount + 1) * cycleMs;
-            // 建議卡位時間（提早10分鐘）
-            const nextSetupTime = nextRefreshTime - setupOffsetMs;
-            
-            // 計算倒數距離「卡位時間」
-            let diff = nextSetupTime - now;
-            
-            // 如果當前時間已經過了卡位時間但還沒到刷新時間，diff會是負的
-            // 這種情況下，我們依然倒數到這次的刷新，或者直接算下一個卡位
-            if (diff < 0 && now < nextRefreshTime) {
-                // 目前正處於進場卡位的10分鐘內
-                document.getElementById('countdown').innerHTML = "紫洞即將開啟！";
-                document.getElementById('countdown').style.color = "#ff5252";
-                
-                // 重置下一輪的播放旗標
+
+            const countdownEl =
+                document.getElementById('countdown');
+
+            const titleEl =
+                document.getElementById('timer-title');
+
+            const infoEl =
+                document.getElementById('next-time-info');
+
+            // 找出最近一次已開始的刷新週期
+            const cycleIndex = Math.floor(
+                (now - baseTime) / cycleMs
+            );
+
+            const currentOpenTime =
+                baseTime + cycleIndex * cycleMs;
+
+            const currentCloseTime =
+                currentOpenTime + openDurationMs;
+
+            const nextOpenTime =
+                currentOpenTime + cycleMs;
+
+            const nextSetupTime =
+                nextOpenTime - setupOffsetMs;
+
+            // 換到新週期時重置語音旗標
+            if (lastCycleIndex !== cycleIndex) {
                 played5 = false;
                 played3 = false;
                 played1 = false;
-            } else {
-                // 如果已經徹底超過刷新時間，重新整理計算（理論上會在上方的 nextRefreshTime 自動進到下一輪）
-                if (diff < 0) {
-                    diff = diff + cycleMs;
-                }
-                
-                document.getElementById('countdown').style.color = "#03dac6";
-                
-                const hours = Math.floor(diff / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                
-                document.getElementById('countdown').innerHTML = 
-                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                
-                // 語音觸發控制 (5分, 3分, 1分)
-                if (hours === 0) {
-                    if (minutes === 5 && !played5) {
-                        speak("咕嘎！咕嘎！深淵坑洞即將開啟，請公會成員速至雲海曠野準備！還有五分鐘！");
-                        played5 = true;
-                    }
-                    if (minutes === 3 && !played3) {
-                        speak("咕嘎！咕嘎！深淵坑洞即將開啟，請公會成員速至雲海曠野準備！還有三分鐘！");
-                        played3 = true;
-                    }
-                    if (minutes === 1 && !played1) {
-                        speak("咕嘎！咕嘎！最後一分鐘！請公會成員立刻到齊！");
-                        played1 = true;
-                    }
-                } else {
-                    // 重置旗標
-                    played5 = false;
-                    played3 = false;
-                    played1 = false;
-                }
+
+                lastCycleIndex = cycleIndex;
             }
-            
-            // 顯示下一次精準重新整理時間
-            const refreshDate = new Date(nextRefreshTime);
-            const rYear = refreshDate.getFullYear();
-            const rMonth = (refreshDate.getMonth() + 1).toString().padStart(2, '0');
-            const rDate = refreshDate.getDate().toString().padStart(2, '0');
-            const rHours = refreshDate.getHours().toString().padStart(2, '0');
-            const rMin = refreshDate.getMinutes().toString().padStart(2, '0');
-            
-            document.getElementById('next-time-info').innerHTML = 
-                `下一次紫洞刷新時間：<span class="highlight">${rYear}/${rMonth}/${rDate} ${rHours}:${rMin}</span><br>` +
-                `建議卡位時間（提早10分）：${rHours}:${(refreshDate.getMinutes() - 10 < 0 ? '00' : refreshDate.getMinutes() - 10)}`;
+
+            // =====================================
+            // 狀態一：紫洞開啟中（15分鐘）
+            // =====================================
+
+            if (
+                now >= currentOpenTime &&
+                now < currentCloseTime
+            ) {
+
+                titleEl.innerHTML =
+                    '<span class="open-status">' +
+                    '🟢 紫洞開啟中！距離結束還剩：' +
+                    '</span>';
+
+                countdownEl.style.color = '#4caf50';
+
+                countdownEl.textContent =
+                    formatCountdown(currentCloseTime - now);
+
+                infoEl.innerHTML =
+                    '本次紫洞開啟：' +
+                    '<span class="highlight">' +
+                    formatDate(currentOpenTime) +
+                    '</span><br>' +
+
+                    '本次紫洞結束：' +
+                    '<span class="highlight">' +
+                    formatDate(currentCloseTime) +
+                    '</span><br>' +
+
+                    '下一次紫洞刷新：' +
+                    '<span class="highlight">' +
+                    formatDate(nextOpenTime) +
+                    '</span>';
+
+                return;
+            }
+
+            // =====================================
+            // 狀態二：提前10分鐘卡位
+            // =====================================
+
+            if (
+                now >= nextSetupTime &&
+                now < nextOpenTime
+            ) {
+
+                titleEl.innerHTML =
+                    '🔴 建議卡位時間已到！距離開啟還剩：';
+
+                countdownEl.style.color = '#ff5252';
+
+                const remaining =
+                    nextOpenTime - now;
+
+                countdownEl.textContent =
+                    formatCountdown(remaining);
+
+                infoEl.innerHTML =
+                    '紫洞正式開啟：' +
+                    '<span class="highlight">' +
+                    formatDate(nextOpenTime) +
+                    '</span><br>' +
+
+                    '紫洞預計結束：' +
+                    formatDate(nextOpenTime + openDurationMs);
+
+                // =================================
+                // 開啟前 5、3、1 分鐘語音提醒
+                // =================================
+
+                const remainingMinutes =
+                    Math.ceil(remaining / 60000);
+
+                if (
+                    remainingMinutes <= 5 &&
+                    remainingMinutes > 3 &&
+                    !played5
+                ) {
+                    speak(
+                        "咕嘎！咕嘎！深淵坑洞即將開啟，" +
+                        "請公會成員速至雲海曠野準備！" +
+                        "還有五分鐘！"
+                    );
+                    played5 = true;
+                }
+
+                if (
+                    remainingMinutes <= 3 &&
+                    remainingMinutes > 1 &&
+                    !played3
+                ) {
+                    speak(
+                        "咕嘎！咕嘎！深淵坑洞即將開啟，" +
+                        "請公會成員速至雲海曠野準備！" +
+                        "還有三分鐘！"
+                    );
+                    played3 = true;
+                }
+
+                if (
+                    remainingMinutes <= 1 &&
+                    !played1
+                ) {
+                    speak(
+                        "咕嘎！咕嘎！最後一分鐘！" +
+                        "請公會成員立刻到齊！"
+                    );
+                    played1 = true;
+                }
+
+                return;
+            }
+
+            // =====================================
+            // 狀態三：等待下一次刷新
+            // =====================================
+
+            titleEl.textContent =
+                '距離下次【建議卡位時間】還剩：';
+
+            countdownEl.style.color = '#03dac6';
+
+            countdownEl.textContent =
+                formatCountdown(nextSetupTime - now);
+
+            infoEl.innerHTML =
+                '下一次紫洞刷新時間：' +
+                '<span class="highlight">' +
+                formatDate(nextOpenTime) +
+                '</span><br>' +
+
+                '建議卡位時間（提前10分）：' +
+                formatDate(nextSetupTime) + '<br>' +
+
+                '預計結束時間：' +
+                formatDate(nextOpenTime + openDurationMs);
         }
 
-        // 每秒更新
+        // =====================================
+        // 每秒更新一次
+        // =====================================
+
         setInterval(updateTimer, 1000);
         updateTimer();
+
     </script>
 </body>
 </html>

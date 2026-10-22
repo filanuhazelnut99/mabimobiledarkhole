@@ -150,11 +150,11 @@
         const baseTime =
     new Date('2026-10-23T02:25:00+08:00').getTime();
 
-        // 每 36 小時開啟一次
-        const cycleMs = 36 * 60 * 60 * 1000;
+        // 紫洞開啟持續15分鐘
+const openDurationMs = 15 * 60 * 1000;
 
-        // 紫洞開啟後持續 15 分鐘
-        const openDurationMs = 15 * 60 * 1000;
+// 紫洞關閉後36小時才再次開啟
+const cycleMs = (36 * 60 + 15) * 60 * 1000;
 
         // 提前 10 分鐘卡位
         const setupOffsetMs = 10 * 60 * 1000;
